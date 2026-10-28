@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="theme-color" content="#2D2D2D">
   <title>Spritz Reader</title>
-  <link rel="manifest" href="/manifest.json">
-  <link rel="stylesheet" href="styles.css">
-  <link rel="stylesheet" href="reader.css">
+  <link rel="manifest" href="./manifest.json">
+  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./reader.css">
 </head>
 <body>
   <!-- Главный экран -->
@@ -19,7 +19,7 @@
          Выбрать файл
       </button>
       
-      <input type="file" id="file-input" accept=".txt,.html,.htm,.epub,.fb2" style="display: none;">
+      <input type="file" id="file-input" accept=".txt,.html,.htm,.epub,.fb2,.docx,.pdf" style="display: none;">
       
       <div id="recent-files" class="recent-section">
         <h2>Недавние книги</h2>
@@ -33,7 +33,6 @@
     <div id="spritz-overlay">
       <div id="spritz-box">
         
-        <!-- Кнопки экрана ВНУТРИ рамки, в углах -->
         <button class="corner-btn" id="orientation-btn" title="Блокировка поворота">🔓</button>
         <button class="corner-btn" id="fullscreen-btn" title="Полный экран">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -41,7 +40,6 @@
           </svg>
         </button>
         
-        <!-- Настройки в самом верху -->
         <div id="spritz-settings">
           <div class="setting-group">
             <button class="setting-btn" id="speed-dec">−</button>
@@ -63,16 +61,12 @@
           </div>
         </div>
         
-        <!-- Верхняя черта -->
         <div class="spritz-divider"></div>
         
-        <!-- Слово -->
         <div id="spritz-word"></div>
         
-        <!-- Нижняя черта -->
         <div class="spritz-divider"></div>
         
-        <!-- Навигация -->
         <div id="spritz-navigation">
           <button class="nav-btn" id="nav-prev-sentence" title="Назад к началу предложения">«</button>
           <button class="nav-btn" id="nav-prev-word" title="Назад на слово">‹</button>
@@ -86,7 +80,6 @@
           <button class="spritz-btn" id="spritz-restart" style="display: none;">Сначала</button>
         </div>
         
-        <!-- Нижний ряд: библиотека слева, прогресс справа -->
         <div id="spritz-footer">
           <button class="back-btn" id="back-btn">← В библиотеку</button>
           <div id="spritz-progress">0 / 0</div>
@@ -95,7 +88,6 @@
       </div>
     </div>
     
-    <!-- Модальное окно выбора шрифта (поверх всего) -->
     <div id="font-modal" class="font-modal">
       <div class="font-modal-content">
         <div class="font-modal-header">
@@ -108,15 +100,22 @@
   </div>
   
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script>
+    if (typeof pdfjsLib !== 'undefined') {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    }
+  </script>
   
-  <script src="parsers.js"></script>
-  <script src="app.js"></script>
-  <script src="reader.js"></script>
+  <script src="./parsers.js"></script>
+  <script src="./app.js"></script>
+  <script src="./reader.js"></script>
   
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/service-worker.js')
+        navigator.serviceWorker.register('./service-worker.js')
           .then(reg => console.log('SW registered:', reg))
           .catch(err => console.log('SW registration failed:', err));
       });
