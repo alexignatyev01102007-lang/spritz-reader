@@ -10,29 +10,36 @@ async function parseFile(file) {
     return await parseEpub(file);
   } else if (fileName.endsWith('.fb2')) {
     return await parseFb2(file);
+  } else if (fileName.endsWith('.docx')) {
+    return await parseDocx(file);
+  } else if (fileName.endsWith('.pdf')) {
+    return await parsePdf(file);
   } else {
-    throw new Error('Неподдерживаемый формат. Используйте .txt, .html, .epub или .fb2');
+    throw new Error('Неподдерживаемый формат. Используйте .txt, .html, .epub, .fb2, .docx или .pdf');
   }
 }
 
 // Универсальная функция чтения файла с автоопределением кодировки
 async function readFileWithEncoding(file) {
-  // Сначала пробуем как UTF-8
-  const utf8Text = await file.text();
+  const buffer = await file.arrayBuffer();
   
-  // Проверяем, есть ли "битые" символы (замена неизвестных символов)
-  // Символ  - это U+FFFD, появляется при ошибке декодирования
-  if (!utf8Text.includes('')) {
-    return { text: utf8Text, encoding: 'UTF-8' };
+  // Сначала пробуем UTF-8
+  try {
+    const utf8Decoder = new TextDecoder('utf-8', { fatal: true });
+    const utf8Text = utf8Decoder.decode(buffer);
+    
+    if (!utf8Text.includes('')) {
+      return { text: utf8Text, encoding: 'UTF-8' };
+    }
+  } catch (e) {
+    // UTF-8 не подошёл
   }
   
-  // Если есть битые символы — пробуем Windows-1251 (самая частая для русских FB2)
+  // Пробуем Windows-1251
   try {
-    const buffer = await file.arrayBuffer();
-    const decoder = new TextDecoder('windows-1251');
-    const cp1251Text = decoder.decode(buffer);
+    const cp1251Decoder = new TextDecoder('windows-1251');
+    const cp1251Text = cp1251Decoder.decode(buffer);
     
-    // Проверяем, что текст выглядит как нормальный (есть русские буквы)
     if (/[а-яА-ЯёЁ]/.test(cp1251Text)) {
       return { text: cp1251Text, encoding: 'Windows-1251' };
     }
@@ -40,11 +47,10 @@ async function readFileWithEncoding(file) {
     console.log('Ошибка декодирования Windows-1251:', e);
   }
   
-  // Пробуем KOI8-R (старая советская кодировка)
+  // Пробуем KOI8-R
   try {
-    const buffer = await file.arrayBuffer();
-    const decoder = new TextDecoder('koi8-r');
-    const koi8Text = decoder.decode(buffer);
+    const koi8Decoder = new TextDecoder('koi8-r');
+    const koi8Text = koi8Decoder.decode(buffer);
     
     if (/[а-яА-ЯёЁ]/.test(koi8Text)) {
       return { text: koi8Text, encoding: 'KOI8-R' };
@@ -53,11 +59,12 @@ async function readFileWithEncoding(file) {
     console.log('Ошибка декодирования KOI8-R:', e);
   }
   
-  // Если ничего не помогло — возвращаем UTF-8 как есть
-  return { text: utf8Text, encoding: 'UTF-8 (возможно, неверно)' };
+  // Если ничего не помогло — UTF-8
+  const utf8Decoder = new TextDecoder('utf-8');
+  return { text: utf8Decoder.decode(buffer), encoding: 'UTF-8 (возможно, неверно)' };
 }
 
-// Чтение .txt с автоопределением кодировки
+// Чтение .txt
 async function parseTxt(file) {
   const result = await readFileWithEncoding(file);
   console.log(`Файл ${file.name} прочитан в кодировке: ${result.encoding}`);
@@ -69,14 +76,11 @@ async function parseHtml(file) {
   const result = await readFileWithEncoding(file);
   console.log(`HTML файл ${file.name} прочитан в кодировке: ${result.encoding}`);
   
-  // Парсим HTML и извлекаем текст
   const parser = new DOMParser();
   const doc = parser.parseFromString(result.text, 'text/html');
   
-  // Удаляем скрипты и стили
   doc.querySelectorAll('script, style, nav, header, footer').forEach(el => el.remove());
   
-  // Извлекаем текст из основных элементов
   const elements = doc.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, td, th, blockquote, article, section');
   
   let fullText = '';
@@ -87,7 +91,6 @@ async function parseHtml(file) {
     }
   });
   
-  // Если не нашли ничего в структурных элементах — берём весь body
   if (!fullText.trim()) {
     fullText = doc.body ? doc.body.textContent : result.text;
   }
@@ -102,7 +105,7 @@ async function parseHtml(file) {
 // Чтение .epub
 async function parseEpub(file) {
   if (typeof JSZip === 'undefined') {
-    throw new Error('Библиотека JSZip не загружена. Проверьте подключение в index.html');
+    throw new Error('Библиотека JSZip не загружена');
   }
   
   const zip = await JSZip.loadAsync(file);
@@ -172,7 +175,7 @@ async function parseEpub(file) {
   return fullText.trim();
 }
 
-// Чтение .fb2 с автоопределением кодировки
+// Чтение .fb2
 async function parseFb2(file) {
   const result = await readFileWithEncoding(file);
   console.log(`FB2 файл ${file.name} прочитан в кодировке: ${result.encoding}`);
@@ -204,6 +207,51 @@ async function parseFb2(file) {
   
   if (!fullText.trim()) {
     throw new Error('Не удалось извлечь текст из FB2 файла');
+  }
+  
+  return fullText.trim();
+}
+
+// Чтение .docx
+async function parseDocx(file) {
+  if (typeof mammoth === 'undefined') {
+    throw new Error('Библиотека mammoth.js не загружена');
+  }
+  
+  const arrayBuffer = await file.arrayBuffer();
+  const result = await mammoth.extractRawText({ arrayBuffer });
+  
+  if (!result.value.trim()) {
+    throw new Error('Не удалось извлечь текст из DOCX файла');
+  }
+  
+  return result.value.trim();
+}
+
+// Чтение .pdf
+async function parsePdf(file) {
+  if (typeof pdfjsLib === 'undefined') {
+    throw new Error('Библиотека pdf.js не загружена');
+  }
+  
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  
+  let fullText = '';
+  
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const textContent = await page.getTextContent();
+    
+    const pageText = textContent.items
+      .map(item => item.str)
+      .join(' ');
+    
+    fullText += pageText + ' ';
+  }
+  
+  if (!fullText.trim()) {
+    throw new Error('Не удалось извлечь текст из PDF файла');
   }
   
   return fullText.trim();
