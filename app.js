@@ -20,21 +20,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const file = event.target.files[0];
     if (file) {
       try {
-        // Читаем файл
         const text = await parseFile(file);
-        
-        // Сохраняем в список недавних
         saveRecentFile(file);
-        
-        // Запускаем читалку (передаем имя и размер файла для прогресса)
         startReading(text, file.name, file.size);
-        
-        // Переключаем на экран чтения
         showScreen('reader-screen');
       } catch (error) {
         alert('Ошибка чтения файла: ' + error.message);
       } finally {
-        // ВАЖНО: сбрасываем значение, чтобы можно было выбрать тот же файл снова
         fileInput.value = '';
       }
     }
@@ -44,7 +36,6 @@ document.addEventListener('DOMContentLoaded', () => {
   function saveRecentFile(file) {
     let recent = JSON.parse(localStorage.getItem('recentFiles') || '[]');
     
-    // Проверяем, нет ли уже такого файла (по имени и размеру)
     const exists = recent.some(f => f.name === file.name && f.size === file.size);
     
     if (!exists) {
@@ -54,7 +45,6 @@ document.addEventListener('DOMContentLoaded', () => {
         date: new Date().toISOString()
       });
     } else {
-      // Перемещаем существующий в начало
       recent = recent.filter(f => !(f.name === file.name && f.size === file.size));
       recent.unshift({
         name: file.name,
@@ -83,18 +73,39 @@ document.addEventListener('DOMContentLoaded', () => {
       </div>
     `).join('');
     
-    // Клик по недавнему файлу — открываем диалог выбора
     document.querySelectorAll('.recent-item').forEach(item => {
       item.addEventListener('click', () => {
-        // Подсказываем пользователю выбрать тот же файл
         const fileName = item.dataset.name;
         const fileSize = parseInt(item.dataset.size);
         
-        // Открываем диалог выбора файла
+        // Показываем подсказку
+        const notification = document.createElement('div');
+        notification.style.cssText = `
+          position: fixed;
+          top: 20px;
+          left: 50%;
+          transform: translateX(-50%);
+          background: #2D2D2D;
+          color: #E5E5E5;
+          padding: 15px 25px;
+          border-radius: 12px;
+          box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+          z-index: 1000000;
+          font-size: 14px;
+          animation: spritz-fade-in 0.2s ease-out;
+        `;
+        notification.textContent = `Выберите файл "${fileName}"`;
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+          notification.style.opacity = '0';
+          notification.style.transition = 'opacity 0.3s';
+          setTimeout(() => notification.remove(), 300);
+        }, 3000);
+        
         fileInput.accept = getAcceptForFile(fileName);
         fileInput.click();
         
-        // После выбора проверяем, что выбран правильный файл
         fileInput.onchange = async (event) => {
           const selectedFile = event.target.files[0];
           if (selectedFile && selectedFile.name === fileName && selectedFile.size === fileSize) {
@@ -115,14 +126,15 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
   
-  // Определяем accept по расширению файла
   function getAcceptForFile(fileName) {
     const ext = fileName.split('.').pop().toLowerCase();
     if (ext === 'txt') return '.txt';
     if (ext === 'epub') return '.epub';
     if (ext === 'fb2') return '.fb2';
     if (ext === 'html' || ext === 'htm') return '.html,.htm';
-    return '.txt,.html,.htm,.epub,.fb2';
+    if (ext === 'docx') return '.docx';
+    if (ext === 'pdf') return '.pdf';
+    return '.txt,.html,.htm,.epub,.fb2,.docx,.pdf';
   }
   
   function formatSize(bytes) {
