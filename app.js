@@ -42,20 +42,40 @@ document.addEventListener('DOMContentLoaded', () => {
       recent.unshift({
         name: file.name,
         size: file.size,
-        date: new Date().toISOString()
+        date: new Date().toISOString(),
+        progress: 0,
+        totalWords: 0
       });
     } else {
       recent = recent.filter(f => !(f.name === file.name && f.size === file.size));
       recent.unshift({
         name: file.name,
         size: file.size,
-        date: new Date().toISOString()
+        date: new Date().toISOString(),
+        progress: 0,
+        totalWords: 0
       });
     }
     
     recent = recent.slice(0, 20);
     localStorage.setItem('recentFiles', JSON.stringify(recent));
   }
+  
+  // Обновление прогресса для файла
+  function updateFileProgress(fileName, fileSize, currentWord, totalWords) {
+    let recent = JSON.parse(localStorage.getItem('recentFiles') || '[]');
+    
+    const fileIndex = recent.findIndex(f => f.name === fileName && f.size === fileSize);
+    if (fileIndex !== -1) {
+      recent[fileIndex].progress = currentWord;
+      recent[fileIndex].totalWords = totalWords;
+      recent[fileIndex].lastRead = new Date().toISOString();
+      localStorage.setItem('recentFiles', JSON.stringify(recent));
+    }
+  }
+  
+  // Делаем функцию доступной глобально
+  window.updateFileProgress = updateFileProgress;
   
   // Показываем список недавних файлов
   function showRecentFiles() {
@@ -66,19 +86,29 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     
-    recentList.innerHTML = recent.map(file => `
-      <div class="recent-item" data-name="${file.name}" data-size="${file.size}">
-        <div class="name">${file.name}</div>
-        <div class="meta">${formatSize(file.size)} • ${formatDate(file.date)}</div>
-      </div>
-    `).join('');
+    recentList.innerHTML = recent.map(file => {
+      const progressPercent = file.totalWords > 0 ? Math.round((file.progress / file.totalWords) * 100) : 0;
+      const progressBar = file.totalWords > 0 ? `
+        <div style="margin-top: 8px; background: rgba(255,255,255,0.05); border-radius: 4px; height: 4px; overflow: hidden;">
+          <div style="width: ${progressPercent}%; background: #FF4444; height: 100%; transition: width 0.3s;"></div>
+        </div>
+        <div style="font-size: 11px; color: #666; margin-top: 4px;">${progressPercent}% прочитано</div>
+      ` : '';
+      
+      return `
+        <div class="recent-item" data-name="${file.name}" data-size="${file.size}">
+          <div class="name">${file.name}</div>
+          <div class="meta">${formatSize(file.size)} • ${formatDate(file.date)}</div>
+          ${progressBar}
+        </div>
+      `;
+    }).join('');
     
     document.querySelectorAll('.recent-item').forEach(item => {
-      item.addEventListener('click', () => {
+      item.addEventListener('click', async () => {
         const fileName = item.dataset.name;
         const fileSize = parseInt(item.dataset.size);
         
-        // Показываем подсказку
         const notification = document.createElement('div');
         notification.style.cssText = `
           position: fixed;
@@ -133,8 +163,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (ext === 'fb2') return '.fb2';
     if (ext === 'html' || ext === 'htm') return '.html,.htm';
     if (ext === 'docx') return '.docx';
+    if (ext === 'doc') return '.doc';
     if (ext === 'pdf') return '.pdf';
-    return '.txt,.html,.htm,.epub,.fb2,.docx,.pdf';
+    return '.txt,.html,.htm,.epub,.fb2,.doc,.docx,.pdf';
   }
   
   function formatSize(bytes) {
