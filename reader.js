@@ -67,9 +67,20 @@ function saveProgress() {
       fileName: window.currentFileName,
       fileSize: window.currentFileSize,
       wordIndex: currentIndex,
+      totalWords: currentWords.length,
       timestamp: new Date().toISOString()
     };
     localStorage.setItem('spritz_progress', JSON.stringify(progress));
+    
+    // Обновляем прогресс в списке недавних файлов
+    if (window.updateFileProgress) {
+      window.updateFileProgress(
+        window.currentFileName,
+        window.currentFileSize,
+        currentIndex,
+        currentWords.length
+      );
+    }
   }
 }
 
@@ -145,7 +156,6 @@ function startReading(text, fileName = null, fileSize = null) {
 
   loadSettings();
 
-  // Проверяем сохраненный прогресс
   if (fileName && fileSize) {
     const savedProgress = loadProgress(fileName, fileSize);
     if (savedProgress !== null) {
@@ -246,25 +256,22 @@ function attachHandlers() {
     }
   };
 
-  // Выбор шрифта - открывает модальное окно
+  // Выбор шрифта
   document.getElementById('font-btn').onclick = () => {
     generateFontDropdown();
     document.getElementById('font-modal').classList.add('active');
   };
 
-  // Закрытие модального окна
   document.getElementById('font-modal-close').onclick = () => {
     document.getElementById('font-modal').classList.remove('active');
   };
 
-  // Закрытие по клику на фон
   document.getElementById('font-modal').onclick = (e) => {
     if (e.target.id === 'font-modal') {
       document.getElementById('font-modal').classList.remove('active');
     }
   };
 
-  // Обработчики для опций шрифта в модальном окне
   document.getElementById('font-modal-list').onclick = (e) => {
     const option = e.target.closest('.font-modal-option');
     if (option) {
@@ -280,7 +287,7 @@ function attachHandlers() {
     }
   };
 
-  // Навигация: назад на слово
+  // Навигация
   document.getElementById('nav-prev-word').onclick = () => {
     if (currentIndex > 0) {
       currentIndex = Math.max(0, currentIndex - 1);
@@ -292,7 +299,6 @@ function attachHandlers() {
     }
   };
 
-  // Навигация: назад к началу предложения
   document.getElementById('nav-prev-sentence').onclick = () => {
     if (currentIndex > 0) {
       currentIndex = findSentenceStart(currentIndex);
@@ -304,7 +310,6 @@ function attachHandlers() {
     }
   };
 
-  // Навигация: вперёд на слово
   document.getElementById('nav-next-word').onclick = () => {
     if (currentIndex < currentWords.length - 1) {
       currentIndex = Math.min(currentWords.length - 1, currentIndex + 1);
@@ -316,7 +321,6 @@ function attachHandlers() {
     }
   };
 
-  // Навигация: вперёд к началу следующего предложения
   document.getElementById('nav-next-sentence').onclick = () => {
     if (currentIndex < currentWords.length - 1) {
       currentIndex = findNextSentenceStart(currentIndex);
@@ -342,7 +346,7 @@ function attachHandlers() {
     }
   };
 
-  // Сначала (сброс прогресса)
+  // Сначала
   document.getElementById('spritz-restart').onclick = () => {
     clearProgress();
     restartReading();
@@ -373,27 +377,39 @@ function attachHandlers() {
     }
   };
 
-  // Блокировка поворота
+  // Блокировка поворота - работает всегда, не только в полноэкранном режиме
   let orientationLocked = false;
-  document.getElementById('orientation-btn').onclick = () => {
+  document.getElementById('orientation-btn').onclick = async () => {
     if (!orientationLocked) {
       if (screen.orientation && screen.orientation.lock) {
-        screen.orientation.lock('portrait').then(() => {
+        try {
+          // Определяем текущую ориентацию
+          const isLandscape = window.innerWidth > window.innerHeight;
+          const lockType = isLandscape ? 'landscape' : 'portrait';
+          
+          await screen.orientation.lock(lockType);
+          orientationLocked = true;
+          document.getElementById('orientation-btn').innerText = '';
+        } catch (err) {
+          console.log('Блокировка не поддерживается:', err);
+          // Пробуем альтернативный метод через CSS
+          document.body.style.setProperty('--orientation-lock', 'enabled');
           orientationLocked = true;
           document.getElementById('orientation-btn').innerText = '🔒';
-        }).catch(err => {
-          console.log('Блокировка не поддерживается:', err);
-          alert('Блокировка поворота не поддерживается в этом браузере');
-        });
+        }
       } else {
-        alert('Блокировка поворота не поддерживается в этом браузере');
+        // Fallback для браузеров без поддержки Screen Orientation API
+        document.body.style.setProperty('--orientation-lock', 'enabled');
+        orientationLocked = true;
+        document.getElementById('orientation-btn').innerText = '🔒';
       }
     } else {
       if (screen.orientation && screen.orientation.unlock) {
         screen.orientation.unlock();
-        orientationLocked = false;
-        document.getElementById('orientation-btn').innerText = '🔓';
       }
+      document.body.style.removeProperty('--orientation-lock');
+      orientationLocked = false;
+      document.getElementById('orientation-btn').innerText = '🔓';
     }
   };
 
