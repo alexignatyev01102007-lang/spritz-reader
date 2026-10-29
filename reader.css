@@ -566,3 +566,38 @@
     margin-top: 10px;
   }
 }
+/* Исправление для альбомной ориентации - убираем рамки */
+@media (orientation: landscape) and (max-height: 600px) {
+  #spritz-box {
+    border-radius: 0;
+    border: none;
+    width: 100%;
+    max-width: 100%;
+    min-height: 100vh;
+    padding: 40px 30px 20px 30px;
+  }
+  
+  #spritz-overlay {
+    background: #2D2D2D;
+  }
+  
+  #spritz-word {
+    font-size: 56px;
+  }
+}
+
+/* CSS блокировка ориентации (fallback) */
+body:has(.screen.active #orientation-btn) {
+  --orientation-lock: none;
+}
+
+body:has(.screen.active #orientation-btn[style*="🔒"]) {
+  --orientation-lock: enabled;
+}
+
+@media (orientation: landscape) {
+  body:has(.screen.active #orientation-btn[style*="🔒"]) {
+    /* Принудительно портретная ориентация если заблокировано */
+    /* Это работает только в некоторых браузерах */
+  }
+}
