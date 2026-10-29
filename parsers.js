@@ -12,10 +12,12 @@ async function parseFile(file) {
     return await parseFb2(file);
   } else if (fileName.endsWith('.docx')) {
     return await parseDocx(file);
+  } else if (fileName.endsWith('.doc')) {
+    return await parseDoc(file);
   } else if (fileName.endsWith('.pdf')) {
     return await parsePdf(file);
   } else {
-    throw new Error('Неподдерживаемый формат. Используйте .txt, .html, .epub, .fb2, .docx или .pdf');
+    throw new Error('Неподдерживаемый формат. Используйте .txt, .html, .epub, .fb2, .doc, .docx или .pdf');
   }
 }
 
@@ -23,45 +25,64 @@ async function parseFile(file) {
 async function readFileWithEncoding(file) {
   const buffer = await file.arrayBuffer();
   
-  // Сначала пробуем UTF-8
-  try {
-    const utf8Decoder = new TextDecoder('utf-8', { fatal: true });
-    const utf8Text = utf8Decoder.decode(buffer);
-    
-    if (!utf8Text.includes('')) {
-      return { text: utf8Text, encoding: 'UTF-8' };
+  // Список кодировок для проверки (по порядку)
+  const encodings = [
+    'utf-8',
+    'windows-1251',
+    'koi8-r',
+    'iso-8859-5',
+    'macintosh',
+    'x-mac-cyrillic',
+    'windows-1252',
+    'ibm866'
+  ];
+  
+  let bestResult = null;
+  let bestScore = -1;
+  
+  for (const encoding of encodings) {
+    try {
+      const decoder = new TextDecoder(encoding);
+      const text = decoder.decode(buffer);
+      
+      // Проверяем качество декодирования
+      let score = 0;
+      
+      // Проверяем на наличие замены символов ()
+      if (!text.includes('')) {
+        score += 10;
+      }
+      
+      // Проверяем наличие русских букв
+      const cyrillicCount = (text.match(/[а-яА-ЯёЁ]/g) || []).length;
+      if (cyrillicCount > 50) {
+        score += 20;
+      }
+      
+      // Проверяем наличие типичных русских слов
+      const commonWords = ['и', 'в', 'не', 'на', 'с', 'по', 'что', 'как', 'это', 'был', 'была', 'было', 'были'];
+      const textLower = text.toLowerCase();
+      for (const word of commonWords) {
+        if (textLower.includes(' ' + word + ' ') || textLower.includes(' ' + word + ',')) {
+          score += 5;
+        }
+      }
+      
+      // Проверяем на наличие XML-тегов (для FB2)
+      if (text.includes('<?xml') || text.includes('<FictionBook')) {
+        score += 15;
+      }
+      
+      if (score > bestScore) {
+        bestScore = score;
+        bestResult = { text, encoding };
+      }
+    } catch (e) {
+      // Кодировка не подошла
     }
-  } catch (e) {
-    // UTF-8 не подошёл
   }
   
-  // Пробуем Windows-1251
-  try {
-    const cp1251Decoder = new TextDecoder('windows-1251');
-    const cp1251Text = cp1251Decoder.decode(buffer);
-    
-    if (/[а-яА-ЯёЁ]/.test(cp1251Text)) {
-      return { text: cp1251Text, encoding: 'Windows-1251' };
-    }
-  } catch (e) {
-    console.log('Ошибка декодирования Windows-1251:', e);
-  }
-  
-  // Пробуем KOI8-R
-  try {
-    const koi8Decoder = new TextDecoder('koi8-r');
-    const koi8Text = koi8Decoder.decode(buffer);
-    
-    if (/[а-яА-ЯёЁ]/.test(koi8Text)) {
-      return { text: koi8Text, encoding: 'KOI8-R' };
-    }
-  } catch (e) {
-    console.log('Ошибка декодирования KOI8-R:', e);
-  }
-  
-  // Если ничего не помогло — UTF-8
-  const utf8Decoder = new TextDecoder('utf-8');
-  return { text: utf8Decoder.decode(buffer), encoding: 'UTF-8 (возможно, неверно)' };
+  return bestResult || { text: new TextDecoder('utf-8').decode(buffer), encoding: 'UTF-8' };
 }
 
 // Чтение .txt
@@ -226,6 +247,24 @@ async function parseDocx(file) {
   }
   
   return result.value.trim();
+}
+
+// Чтение .doc (старый формат Word)
+async function parseDoc(file) {
+  // Для .doc используем простую эвристику - читаем как текст
+  // Это не идеально, но лучше чем ничего
+  const result = await readFileWithEncoding(file);
+  
+  // Удаляем бинарные данные, оставляем только читаемый текст
+  const cleanedText = result.text.replace(/[^\x20-\x7Eа-яА-ЯёЁ\s.,;:!?\-]/g, ' ');
+  const lines = cleanedText.split('\n').filter(line => line.trim().length > 2);
+  const text = lines.join(' ');
+  
+  if (!text.trim()) {
+    throw new Error('Не удалось извлечь текст из DOC файла. Попробуйте сохранить файл в формате .docx');
+  }
+  
+  return text.trim();
 }
 
 // Чтение .pdf
